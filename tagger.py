@@ -133,6 +133,8 @@ def generate_alt_text(client: OpenAI, image_url: str, model: str) -> str:
                     "role": "system",
                     "content": "You are an expert at writing descriptive, concise alt text for images. "
                               "Provide only the alt text, without any additional explanation or context."
+                              "If the image is decorative, return 'Decorative image ' with a brief description of the image."
+                              "Be concise. You don't need to write complete sentences. The output should be a single line of text."
                 },
                 {
                     "role": "user",
