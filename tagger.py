@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+import os
+import sys
+import requests
+import csv
+from urllib.parse import urljoin
+from openai import OpenAI
+from typing import List, Dict
 
 """
 WordPress Image Alt Text Generator
@@ -7,42 +14,24 @@ This script connects to a WordPress site's API, retrieves media items,
 and generates alt text for images missing it using OpenAI's API.
 It can operate in dry-run mode (default) or update mode.
 
-Usage:
-    python tagger.py <wordpress_url> [model] [mode] [limit]
-    
-Arguments:
-    wordpress_url : Required - The base URL of the WordPress site
-    model        : Optional - OpenAI model to use (default: gpt-4-vision-preview)
-    mode         : Optional - 'dry-run' or 'update' (default: dry-run)
-    limit        : Optional - Number of images to process (default: 10, 0 for all)
 """
-
-import os
-import sys
-import csv
-import requests
-from typing import List, Dict, Optional
-from dotenv import load_dotenv
-from openai import OpenAI
-import json
-from urllib.parse import urljoin
-
-# Load environment variables
-load_dotenv()
 
 def display_usage():
     """Display script usage information."""
     print("""
-Usage: python tagger.py <wordpress_url> [model] [mode] [limit]
+Usage: python tagger.py <wordpress_url> [options]
 
-Arguments:
-    wordpress_url : Required - The base URL of the WordPress site
-    model        : Optional - OpenAI model to use (default: gpt-4o-mini)
-    mode         : Optional - 'dry-run' or 'update' (default: dry-run)
-    limit        : Optional - Number of images to process (default: 10, 0 for all)
+Required:
+    wordpress_url : The base URL of the WordPress site
+
+Options:
+    -m, --model  : OpenAI model to use (default: gpt-4o-mini)
+    -w, --write  : Enable write mode (default: dry-run if omitted)
+    -l, --limit  : Number of images to process (default: 10, 0 for all)
+    -o, --output : Output CSV file (default: domain_name.csv)
 
 Example:
-    python tagger.py https://example.com gpt-4 update 20
+    python tagger.py https://example.com -m gpt-4 -w -l 20 -o results.csv
     """)
     sys.exit(1)
 
@@ -54,21 +43,64 @@ def validate_arguments(args: List[str]) -> tuple:
         args: List of command line arguments
         
     Returns:
-        tuple: (wordpress_url, model, mode, limit)
+        tuple: (wordpress_url, model, write_mode, limit, output_file)
     """
     if len(args) < 2:
         display_usage()
-        
-    wordpress_url = args[1]
-    model = args[2] if len(args) > 2 else "gpt-4o-mini"
-    mode = args[3] if len(args) > 3 else "dry-run"
-    limit = int(args[4]) if len(args) > 4 else 10
     
-    if mode not in ["dry-run", "update"]:
-        print("Error: mode must be either 'dry-run' or 'update'")
-        sys.exit(1)
+    # Initialize defaults
+    wordpress_url = args[1]
+    model = "gpt-4o-mini"
+    write_mode = False
+    limit = 10
+    output_file = None
+    
+    # Process arguments
+    i = 2
+    while i < len(args):
+        if args[i] in ['-m', '--model']:
+            if i + 1 < len(args):
+                model = args[i + 1]
+                i += 2
+            else:
+                print("Error: Model name missing after -m/--model")
+                sys.exit(1)
+        elif args[i] in ['-l', '--limit']:
+            if i + 1 < len(args):
+                try:
+                    limit = int(args[i + 1])
+                    i += 2
+                except ValueError:
+                    print("Error: Limit must be a number")
+                    sys.exit(1)
+            else:
+                print("Error: Limit value missing after -l/--limit")
+                sys.exit(1)
+        elif args[i] in ['-o', '--output']:
+            if i + 1 < len(args):
+                output_file = args[i + 1]
+                i += 2
+            else:
+                print("Error: Output file name missing after -o/--output")
+                sys.exit(1)
+        elif args[i] in ['-w', '--write']:
+            write_mode = True
+            i += 1
+        else:
+            print(f"Error: Unknown argument '{args[i]}'")
+            display_usage()
+    
+    # Generate default output filename from domain if not specified
+    if not output_file:
+        from urllib.parse import urlparse
+        domain = urlparse(wordpress_url).netloc
+        output_file = f"{domain}.csv"
+    
+    # Ensure .csv extension
+    if not output_file.lower().endswith('.csv'):
+        output_file += '.csv'
         
-    return wordpress_url, model, mode, limit
+    return wordpress_url, model, write_mode, limit, output_file
 
 def get_wordpress_media(base_url: str, limit: int) -> List[Dict]:
     """
@@ -164,7 +196,7 @@ def main():
         sys.exit(1)
 
     # Process command line arguments
-    wordpress_url, model, mode, limit = validate_arguments(sys.argv)
+    wordpress_url, model, write_mode, limit, output_file = validate_arguments(sys.argv)
     
     # Initialize OpenAI client
     client = OpenAI(api_key=os.getenv("API_KEY_OPENAI"))
@@ -182,7 +214,7 @@ def main():
     print(f"Found {len(images_missing_alt)} images missing alt text")
     
     # Prepare CSV output
-    output_file = "image_alt_text_results.csv"
+    print(f"Writing results to {output_file}")
     fieldnames = ["id", "title", "original_alt", "generated_alt", "url"]
     
     with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
@@ -208,9 +240,9 @@ def main():
                 "url": item["source_url"]
             })
             
-            if mode == "update":
+            if write_mode:
                 # TODO: Implement WordPress update functionality
-                print("Update mode not yet implemented")
+                print("Write mode not yet implemented")
     
     print(f"Results written to {output_file}")
 

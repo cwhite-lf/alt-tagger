@@ -40,10 +40,10 @@ Basic usage:
 `python tagger.py <wordpress_url> [model] [mode] [limit]`
 
 Arguments:
-- `wordpress_url`: (Required) Base URL of the WordPress site
-- `model`: (Optional) OpenAI model to use (default: gpt-4o-mini)
-- `mode`: (Optional) 'dry-run' or 'update' (default: dry-run)
-- `limit`: (Optional) Number of images to process (default: 10, 0 for all)
+    -m, --model  : OpenAI model to use (default: gpt-4o-mini)
+    -w, --write  : Enable write mode (default: dry-run if omitted)
+    -l, --limit  : Number of images to process (default: 10, 0 for all)
+    -o, --output : Output CSV file (default: domain_name.csv)
 
 Example:
 `python tagger.py https://lafleur.marketing gpt-4 update 20`
